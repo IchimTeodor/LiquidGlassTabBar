@@ -118,4 +118,11 @@ struct TabBarShrinkModelTests {
         model.reset()
         #expect(model.progress == 0)
     }
+
+    @Test func settleTieBreakAtExactMidpointShrinks() {
+        var model = makeModel()
+        scroll(&model, to: 100)
+        scroll(&model, to: 100 + TabBarShrinkModel.shrinkDistance / 2) // exactly 0.5
+        #expect(model.settle(velocity: 0) == 1)
+    }
 }

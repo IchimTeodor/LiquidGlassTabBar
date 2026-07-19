@@ -5,6 +5,7 @@ import SwiftUI
 /// Each tab owns its own ScrollView, so scroll positions persist across
 /// tab switches.
 struct SwiftUIHostView: View {
+    var variant: BarVariant = .metal
     @State private var selectedIndex = 0
     @State private var coordinator = ShrinkCoordinator()
 
@@ -20,7 +21,8 @@ struct SwiftUIHostView: View {
             .environment(\.shrinkCoordinator, coordinator)
             ShrinkingTabBarView(items: MockData.tabs,
                                 selectedIndex: $selectedIndex,
-                                coordinator: coordinator)
+                                coordinator: coordinator,
+                                variant: variant)
                 .frame(height: 64)
                 .padding(.horizontal, 16)
                 .padding(.bottom, 4)

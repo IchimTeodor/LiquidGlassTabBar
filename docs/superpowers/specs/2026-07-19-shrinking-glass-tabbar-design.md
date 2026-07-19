@@ -64,14 +64,59 @@ Pure, framework-free type. Input: scroll offset samples plus drag phase
 
 - `UIVisualEffectView` background: `UIGlassEffect` when available
   (`#available(iOS 26, *)`), else ultra-thin material; capsule corner shape.
+- **Glass shaping on iOS 26 uses `cornerConfiguration = .capsule()`** (both
+  the bar capsule and the lens) — never `layer.cornerRadius` + clipping,
+  which crops a rectangular glass render and loses the refractive rim on
+  the margins. Manual corner radius + `clipsToBounds` is the iOS 18–25
+  fallback only.
+- **A true glass lens inside a glass bar is not buildable with public API**
+  (verified empirically, both ways): (a) glass stacked above glass cannot
+  sample it — the lens degrades to a flat fill; (b) sibling glass shapes in
+  a `UIGlassContainerEffect` *merge* when overlapping, so a lens inside the
+  capsule vanishes into the bar's silhouette. The native tab bar's lens
+  uses private compositing. Metal doesn't help either: the backdrop texture
+  is not exposed to third-party shaders.
+- **Therefore the lens look is hand-crafted**: the interactive glass pill
+  (whatever the platform renders of it) is topped with a gradient rim ring
+  (`CAGradientLayer` masked to a capsule stroke) and a soft glow, so the
+  margins read as refracting glass deterministically on simulator, device,
+  and the iOS 18 fallback.
+- **Two switchable lens variants for comparison** (runtime toggle in the
+  demo UI, `ShrinkingTabBar.lensStyle`): `.systemGlass` — the existing
+  glass + rim pill, unchanged; `.coreAnimation` — a pure Core Animation
+  lens (`CoreAnimationLensView`) with a clear body: rim ring, inner dark
+  refraction band, top specular highlight, drop shadow — no
+  `UIVisualEffectView` at all, so it renders identically everywhere. The
+  bar drives both through the same view contract (frame/center/alpha/
+  transform set externally).
+- **Real Liquid Glass anatomy (reverse-engineered; guides the CA lens)**:
+  the system effect is Core Animation with private filters
+  (`glassBackground`/`glassForeground`, `CASDFEffect` subclasses like
+  `CASDFGlassDisplacementEffect`/`CASDFGlassHighlightEffect`). Optically it
+  is three passes: (1) backdrop displacement from the shape's height
+  profile — zero in the flat center, maximum at the bezel, convex glass
+  pushing pixels inward; (2) a specular rim where surface normals catch
+  the light (~0.2–0.5 opacity); (3) highlight blended over the refracted
+  image. Public-API reproduction for owned content: the bezel displacement
+  is faked by a third replica of the item row masked to a thin ring band
+  riding the lens edge, scaled ~1.06 about the lens center (edge content
+  shifts inward; center stays aligned) — `refractionStack` in the bar.
 - 4 tab items rendered as SF Symbol + caption label; selected item tinted.
 - **Drag-only liquid glass pill**: at rest there is NO pill — selection is
   shown by tint alone. When a pan begins on the bar, an interactive liquid
   glass lens (`UIGlassEffect` with `isInteractive = true` on iOS 26;
-  `.systemFill` capsule on iOS 18–25) materializes sized to the item slot,
-  follows the finger horizontally (clamped to the item strip), and on
-  release snaps to the nearest item, selects it, and fades out — matching
-  the native iOS 26 tab bar's drag interaction. The pill is a
+  `.systemFill` capsule on iOS 18–25) materializes sized to the item slot
+  and follows the finger with **springy inertia** (under-damped spring
+  toward the finger, with an elastic stretch proportional to how far the
+  lens visually lags the finger — the "bubbly" feel of the native lens).
+  While the lens moves it **paints what it covers**: a tinted (systemBlue)
+  replica of the item row sits above the gray row, masked by a capsule that
+  rides with the lens — the covered *portions* of icons/labels color
+  continuously (partially across two items mid-slide), not whole-button at
+  a threshold. At rest the mask parks on the selected slot (whole selected
+  item tinted). Selection is committed only on release: the lens snaps to
+  the nearest item, selects it (`onSelect`), and fades out — matching the
+  native iOS 26 tab bar's drag interaction. The pill is a
   non-interactive sibling above the bar's glass (never nested inside
   another effect view), below the item buttons.
 - `setProgress(_:)` shrinks the bar with **real layout, not a transform**:

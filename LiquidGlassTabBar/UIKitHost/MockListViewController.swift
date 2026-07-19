@@ -4,9 +4,14 @@ import UIKit
 /// scroll tracking is attached externally by the host.
 final class MockListViewController: UITableViewController {
     private let rows: [String]
+    /// Extra bottom inset keeping the last rows clear of the floating
+    /// custom bar. The native-tab-bar host passes 0 — the system bar
+    /// manages its own safe-area insets.
+    private let bottomInset: CGFloat
 
-    init(rows: [String]) {
+    init(rows: [String], bottomInset: CGFloat = 90) {
         self.rows = rows
+        self.bottomInset = bottomInset
         super.init(style: .plain)
     }
 
@@ -15,7 +20,7 @@ final class MockListViewController: UITableViewController {
     override func viewDidLoad() {
         super.viewDidLoad()
         tableView.register(UITableViewCell.self, forCellReuseIdentifier: "cell")
-        tableView.contentInset.bottom = 90 // keep last rows clear of the bar
+        tableView.contentInset.bottom = bottomInset
     }
 
     override func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {

@@ -28,6 +28,9 @@ private struct ShrinksTabBarOnScroll: ViewModifier {
     func body(content: Content) -> some View {
         content
             .onScrollGeometryChange(for: ScrollSample.self) { geometry in
+                // NOTE: UIKit's ScrollShrinkObserver reduces the viewport by
+                // adjusted content insets; containerSize here does not. See
+                // the matching note in ScrollShrinkObserver.
                 ScrollSample(offset: geometry.contentOffset.y + geometry.contentInsets.top,
                              viewport: geometry.containerSize.height,
                              content: geometry.contentSize.height)

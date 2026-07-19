@@ -15,7 +15,7 @@ final class ShrinkCoordinator {
 
     private let isShrinkEnabled: Bool
     private(set) var model = TabBarShrinkModel()
-    weak var bar: ShrinkingTabBar?
+    weak var bar: (any ShrinkableBar)?
 
     private var isDragging = false
     private var lastSample: (offset: CGFloat, time: TimeInterval)?

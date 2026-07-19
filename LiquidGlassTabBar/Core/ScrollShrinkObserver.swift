@@ -16,6 +16,10 @@ final class ScrollShrinkObserver: NSObject {
         scrollView.panGestureRecognizer.addTarget(self, action: #selector(handlePan(_:)))
         observations.append(scrollView.observe(\.contentOffset, options: [.new]) { [coordinator] scrollView, _ in
             let inset = scrollView.adjustedContentInset
+            // NOTE: SwiftUI's .shrinksTabBar() feeds containerSize.height
+            // (not inset-reduced). The shrink is delta-driven so behavior is
+            // identical in practice; only the maxOffset clamp near the scroll
+            // extremes differs by the inset total. Keep in mind if normalizing.
             coordinator.scrolled(offset: scrollView.contentOffset.y + inset.top,
                                  viewportHeight: scrollView.bounds.height - inset.top - inset.bottom,
                                  contentHeight: scrollView.contentSize.height)
