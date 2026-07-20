@@ -1,0 +1,32 @@
+name: LiquidGlassTabBarDemo
+options:
+  bundleIdPrefix: com.teodorichim
+  deploymentTarget:
+    iOS: "18.0"
+  createIntermediateGroups: true
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+packages:
+  LiquidGlassTabBar:
+    path: ../
+targets:
+  LiquidGlassTabBarDemo:
+    type: application
+    platform: iOS
+    sources: [Sources]
+    dependencies:
+      - package: LiquidGlassTabBar
+        product: LiquidGlassTabBar
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_KEY_UILaunchScreen_Generation: YES
+        PRODUCT_BUNDLE_IDENTIFIER: com.teodorichim.LiquidGlassTabBarDemo
+schemes:
+  LiquidGlassTabBarDemo:
+    build:
+      targets:
+        LiquidGlassTabBarDemo: all
+    run:
+      config: Debug

@@ -2,7 +2,7 @@
 
 A study in rebuilding the iOS 26 **Liquid Glass** tab bar from scratch — including the refractive "bubble" that follows your finger, rendered by a real Metal fragment shader rather than stacked Core Animation layers.
 
-The app runs the custom bar side by side with the genuine system tab bar, so the reproduction can be compared against ground truth on the same screen, at the same moment, with the same content underneath.
+It ships as a Swift package you can drop into an app, plus a demo that runs the custom bar side by side with the genuine system tab bar — so the reproduction can be compared against ground truth on the same screen, at the same moment, with the same content underneath.
 
 ## What's in here
 
@@ -15,25 +15,94 @@ The app runs the custom bar side by side with the genuine system tab bar, so the
 ## Requirements
 
 - Xcode 26 or later
+- Swift 6 language mode (the package builds cleanly under strict concurrency)
 - iOS 18.0+ deployment target
 - iOS 26+ for the real `UIGlassEffect` and shrink-on-scroll; on iOS 18–25 the bar falls back to a `systemUltraThinMaterial` blur and stays at full size
 - A device or simulator with Metal (the lens degrades to rendering nothing if Metal is unavailable — the rest of the bar is entirely independent of it)
 
-## Getting started
+## Installation
+
+Add the package in Xcode via **File → Add Package Dependencies**, or declare it directly:
+
+```swift
+dependencies: [
+    .package(url: "https://github.com/IchimTeodor/LiquidGlassTabBar.git", from: "1.0.0")
+]
+```
+
+Then `import LiquidGlassTabBar`.
+
+## Usage
+
+Hand the bar your items and a selection binding. Shrink-on-scroll is on by default and needs no wiring — nothing is attached to your scroll views, and there is no coordinator to build:
+
+```swift
+import SwiftUI
+import LiquidGlassTabBar
+
+struct ContentView: View {
+    private let items = [
+        TabItem(title: "Home", systemImage: "house.fill"),
+        TabItem(title: "Search", systemImage: "magnifyingglass"),
+    ]
+    @State private var selectedIndex = 0
+
+    var body: some View {
+        ZStack(alignment: .bottom) {
+            ScrollView {
+                // your content
+            }
+
+            ShrinkingTabBarView(items: items, selectedIndex: $selectedIndex)
+                .frame(height: 64)
+                .padding(.horizontal, 16)
+        }
+    }
+}
+```
+
+UIKit is the same idea — add the bar and you're done:
+
+```swift
+let bar = ShrinkingTabBar(items: items)
+bar.onSelect = { index in /* switch tabs */ }
+view.addSubview(bar)
+// bar.minimizesOnScroll is already true; nothing else to wire.
+```
+
+### How it finds your scroll views
+
+The bar puts an inert probe gesture recognizer on its window. Recognizers on an ancestor are offered every touch that lands in a descendant, so the probe is asked about each touch-down anywhere in the app; walking up from the touched view finds the scroll view containing it, which is observed from then on. The probe always declines the touch, so it never begins, and cannot delay, cancel, or compete with anything.
+
+Discovery happens on touch rather than by scanning the hierarchy up front because scroll views appear lazily — an unselected tab, a sheet, or a lazily built list has none yet when the bar is installed, and UIKit offers no general "a scroll view was added" hook to re-scan on. A scroll view you're touching definitely exists, and that touch is exactly when the shrink is about to need it.
+
+The same mechanism serves both frameworks: a SwiftUI `ScrollView` is backed by a `UIScrollView`, so it's discovered the same way a `UITableView` is.
+
+### Driving it yourself
+
+To control the shrink manually, hand the bar a `ShrinkCoordinator`. That switches the automatic path off, so the two can't both push progress into the same bar:
+
+```swift
+let coordinator = ShrinkCoordinator()
+coordinator.bar = bar                  // turns off bar.minimizesOnScroll
+let observer = ScrollShrinkObserver(coordinator: coordinator)
+observer.attach(to: tableView)         // attach the ones you care about
+```
+
+In SwiftUI, pass the coordinator to `ShrinkingTabBarView(items:selectedIndex:variant:coordinator:)` and attach `.shrinksTabBar()` to the scroll views that should drive it, with the coordinator injected via `.environment(\.shrinkCoordinator, coordinator)`.
+
+## Running the demo
 
 ```sh
 git clone https://github.com/IchimTeodor/LiquidGlassTabBar.git
-cd LiquidGlassTabBar
-open LiquidGlassTabBar.xcodeproj
+open LiquidGlassTabBar/Demo/LiquidGlassTabBarDemo.xcodeproj
 ```
 
-Then build and run the `LiquidGlassTabBar` scheme.
-
-The project file is committed so the repo opens directly, but it's generated from `project.yml` by [XcodeGen](https://github.com/yonaskolb/XcodeGen). If you add or remove source files, regenerate it rather than editing the project by hand:
+Build and run the `LiquidGlassTabBarDemo` scheme. The demo project is committed so it opens directly, but it's generated from `Demo/project.yml` by [XcodeGen](https://github.com/yonaskolb/XcodeGen). If you add or remove demo files, regenerate rather than editing the project by hand:
 
 ```sh
 brew install xcodegen   # once
-xcodegen generate
+cd Demo && xcodegen generate
 ```
 
 ## Running the tests
@@ -42,7 +111,7 @@ xcodegen generate
 xcodebuild -scheme LiquidGlassTabBar -destination 'platform=iOS Simulator,name=iPhone 17 Pro' test
 ```
 
-The suite covers the pure shrink model, the scroll plumbing, and the bar's layout and drag behavior — slot geometry, tint-mask tracking, lens sizing, and title layout under shrink.
+The suite covers the pure shrink model, the scroll plumbing, and the bar's layout and drag behavior — slot geometry, tint-mask tracking, lens sizing, and title layout under shrink. A simulator destination is required: the package is iOS-only, so `swift test` on macOS won't build it.
 
 ## How the lens works
 
@@ -62,14 +131,16 @@ Both files carry extensive comments recording what was tried and rejected, which
 
 | Path | Contents |
 | --- | --- |
-| `LiquidGlassTabBar/Core/` | Pure, UI-free shrink logic: the shrink model, the scroll-to-model bridge, KVO scroll observation |
-| `LiquidGlassTabBar/TabBar/` | Both bar implementations, the Metal lens view, and the shader |
-| `LiquidGlassTabBar/SwiftUIHost/` | SwiftUI host and the `.shrinksTabBar()` modifier |
-| `LiquidGlassTabBar/UIKitHost/` | UIKit host and the native reference host |
-| `Tests/` | Swift Testing suites |
+| `Sources/LiquidGlassTabBar/Core/` | Pure, UI-free shrink logic: the shrink model, the scroll-to-model bridge, KVO scroll observation |
+| `Sources/LiquidGlassTabBar/TabBar/` | Both bar implementations, the Metal lens view, and the shader |
+| `Sources/LiquidGlassTabBar/SwiftUI/` | `ShrinkingTabBarView` and the `.shrinksTabBar()` modifier |
+| `Tests/LiquidGlassTabBarTests/` | Swift Testing suites |
+| `Demo/` | The demo app: SwiftUI host, UIKit host, and the native reference host |
 | `docs/` | Design spec and implementation plan |
 
 `TabBarShrinkModel` is deliberately free of UIKit: it takes scroll samples and produces a progress value, so the scroll behavior is testable without a view hierarchy.
+
+`Shaders.metal` lives alongside the Swift sources, so SwiftPM compiles it into a `default.metallib` inside the target's resource bundle. That's why the lens loads its library from `Bundle.module` — the no-argument `makeDefaultLibrary()` reads the *main* bundle, which in a package consumer holds the app's shaders, not the package's.
 
 ## Contributing
 

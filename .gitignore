@@ -3,7 +3,9 @@ DerivedData/
 build/
 build18/
 build-tests/
+.swiftpm/
+.build/
 
-# The generated .xcodeproj is committed so the repo opens without XcodeGen,
-# but per-user Xcode state inside it never is.
+# The demo's generated .xcodeproj is committed so the repo opens without
+# XcodeGen, but per-user Xcode state inside it never is.
 xcuserdata/
