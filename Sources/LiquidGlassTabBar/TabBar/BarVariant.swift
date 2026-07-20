@@ -22,5 +22,8 @@ public enum BarVariant {
 public protocol ShrinkableBar: UIView {
     var onSelect: ((Int) -> Void)? { get set }
     var selectedIndex: Int { get set }
+    /// Shrink in response to any scroll view the user drags, with no
+    /// per-scroll-view wiring — see the property on the concrete bars.
+    var minimizesOnScroll: Bool { get set }
     func setProgress(_ newProgress: CGFloat, animated: Bool)
 }

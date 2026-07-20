@@ -6,15 +6,20 @@ import SwiftUI
 public struct ShrinkingTabBarView: UIViewRepresentable {
     let items: [TabItem]
     @Binding var selectedIndex: Int
-    let coordinator: ShrinkCoordinator
+    let coordinator: ShrinkCoordinator?
     var variant: BarVariant = .metal
 
     /// The memberwise initializer is internal, so package consumers get an
     /// explicit one.
+    ///
+    /// - Parameter coordinator: leave this `nil` (the default) and the bar
+    ///   shrinks on scroll by itself — no coordinator to build, nothing to
+    ///   attach to each `ScrollView`. Pass one only to drive the shrink
+    ///   yourself, which turns the automatic behaviour off.
     public init(items: [TabItem],
                 selectedIndex: Binding<Int>,
-                coordinator: ShrinkCoordinator,
-                variant: BarVariant = .metal) {
+                variant: BarVariant = .metal,
+                coordinator: ShrinkCoordinator? = nil) {
         self.items = items
         self._selectedIndex = selectedIndex
         self.coordinator = coordinator
@@ -51,6 +56,8 @@ public struct ShrinkingTabBarView: UIViewRepresentable {
         container.addSubview(bar)
         container.bar = bar
         container.variant = variant
-        coordinator.bar = bar
+        // Assigning the bar switches its automatic mode off, so this must
+        // happen only when a coordinator was actually supplied.
+        coordinator?.bar = bar
     }
 }

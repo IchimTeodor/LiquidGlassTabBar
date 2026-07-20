@@ -2,9 +2,11 @@ import UIKit
 import LiquidGlassTabBar
 
 /// 4-tab mock host built on UITabBarController (system tab bar hidden),
-/// using the same bar variants and ShrinkCoordinator as the SwiftUI host.
-/// Scroll tracking is attached per scroll view by ScrollShrinkObserver;
-/// the content controllers know nothing about the bar.
+/// using the same bar variants as the SwiftUI host.
+///
+/// Nothing here attaches scroll tracking: the bar's `minimizesOnScroll`
+/// (on by default) finds whichever table view is being dragged, including
+/// the tabs that have not been built yet at this point.
 final class UIKitHostViewController: UITabBarController {
     var variant: BarVariant = .metal {
         didSet {
@@ -12,8 +14,6 @@ final class UIKitHostViewController: UITabBarController {
             installBar()
         }
     }
-    private let coordinator = ShrinkCoordinator()
-    private lazy var scrollObserver = ScrollShrinkObserver(coordinator: coordinator)
     private var shrinkBar: (UIView & ShrinkableBar)?
 
     override func viewDidLoad() {
@@ -21,9 +21,7 @@ final class UIKitHostViewController: UITabBarController {
         view.backgroundColor = .systemBackground
 
         viewControllers = MockData.tabs.indices.map { index in
-            let controller = MockListViewController(rows: MockData.rows(for: index))
-            scrollObserver.attach(to: controller.tableView)
-            return controller
+            MockListViewController(rows: MockData.rows(for: index))
         }
 
         tabBar.isHidden = true
@@ -41,11 +39,9 @@ final class UIKitHostViewController: UITabBarController {
         case .metal: ShrinkingTabBar(items: MockData.tabs)
         }
         bar.selectedIndex = previousSelection
-        coordinator.bar = bar
         bar.onSelect = { [weak self] index in
             guard let self, self.selectedIndex != index else { return }
             self.selectedIndex = index
-            self.coordinator.tabChanged()
         }
         bar.translatesAutoresizingMaskIntoConstraints = false
         view.addSubview(bar)

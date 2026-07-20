@@ -15,6 +15,7 @@ It ships as a Swift package you can drop into an app, plus a demo that runs the 
 ## Requirements
 
 - Xcode 26 or later
+- Swift 6 language mode (the package builds cleanly under strict concurrency)
 - iOS 18.0+ deployment target
 - iOS 26+ for the real `UIGlassEffect` and shrink-on-scroll; on iOS 18–25 the bar falls back to a `systemUltraThinMaterial` blur and stays at full size
 - A device or simulator with Metal (the lens degrades to rendering nothing if Metal is unavailable — the rest of the bar is entirely independent of it)
@@ -33,7 +34,7 @@ Then `import LiquidGlassTabBar`.
 
 ## Usage
 
-In SwiftUI, hand the bar your items and a selection binding, and attach `.shrinksTabBar()` to the scroll view that should drive the shrink:
+Hand the bar your items and a selection binding. Shrink-on-scroll is on by default and needs no wiring — nothing is attached to your scroll views, and there is no coordinator to build:
 
 ```swift
 import SwiftUI
@@ -45,19 +46,14 @@ struct ContentView: View {
         TabItem(title: "Search", systemImage: "magnifyingglass"),
     ]
     @State private var selectedIndex = 0
-    @State private var coordinator = ShrinkCoordinator()
 
     var body: some View {
         ZStack(alignment: .bottom) {
             ScrollView {
                 // your content
             }
-            .shrinksTabBar()
-            .environment(\.shrinkCoordinator, coordinator)
 
-            ShrinkingTabBarView(items: items,
-                                selectedIndex: $selectedIndex,
-                                coordinator: coordinator)
+            ShrinkingTabBarView(items: items, selectedIndex: $selectedIndex)
                 .frame(height: 64)
                 .padding(.horizontal, 16)
         }
@@ -65,19 +61,35 @@ struct ContentView: View {
 }
 ```
 
-In UIKit, add `ShrinkingTabBar` as a subview and point a `ScrollShrinkObserver` at each scroll view:
+UIKit is the same idea — add the bar and you're done:
 
 ```swift
 let bar = ShrinkingTabBar(items: items)
 bar.onSelect = { index in /* switch tabs */ }
-
-let coordinator = ShrinkCoordinator()
-coordinator.bar = bar
-let observer = ScrollShrinkObserver(coordinator: coordinator)
-observer.attach(to: tableView)
+view.addSubview(bar)
+// bar.minimizesOnScroll is already true; nothing else to wire.
 ```
 
-The scroll views never need to know about the bar — the observer watches `contentOffset` via KVO and drives the shared coordinator.
+### How it finds your scroll views
+
+The bar puts an inert probe gesture recognizer on its window. Recognizers on an ancestor are offered every touch that lands in a descendant, so the probe is asked about each touch-down anywhere in the app; walking up from the touched view finds the scroll view containing it, which is observed from then on. The probe always declines the touch, so it never begins, and cannot delay, cancel, or compete with anything.
+
+Discovery happens on touch rather than by scanning the hierarchy up front because scroll views appear lazily — an unselected tab, a sheet, or a lazily built list has none yet when the bar is installed, and UIKit offers no general "a scroll view was added" hook to re-scan on. A scroll view you're touching definitely exists, and that touch is exactly when the shrink is about to need it.
+
+The same mechanism serves both frameworks: a SwiftUI `ScrollView` is backed by a `UIScrollView`, so it's discovered the same way a `UITableView` is.
+
+### Driving it yourself
+
+To control the shrink manually, hand the bar a `ShrinkCoordinator`. That switches the automatic path off, so the two can't both push progress into the same bar:
+
+```swift
+let coordinator = ShrinkCoordinator()
+coordinator.bar = bar                  // turns off bar.minimizesOnScroll
+let observer = ScrollShrinkObserver(coordinator: coordinator)
+observer.attach(to: tableView)         // attach the ones you care about
+```
+
+In SwiftUI, pass the coordinator to `ShrinkingTabBarView(items:selectedIndex:variant:coordinator:)` and attach `.shrinksTabBar()` to the scroll views that should drive it, with the coordinator injected via `.environment(\.shrinkCoordinator, coordinator)`.
 
 ## Running the demo
 

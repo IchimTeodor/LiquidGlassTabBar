@@ -16,7 +16,29 @@ public final class ShrinkCoordinator {
 
     private let isShrinkEnabled: Bool
     public private(set) var model = TabBarShrinkModel()
-    public weak var bar: (any ShrinkableBar)?
+
+    private weak var storedBar: (any ShrinkableBar)?
+
+    /// The bar this coordinator drives.
+    ///
+    /// Assigning one turns OFF that bar's `minimizesOnScroll`: wiring a
+    /// coordinator by hand means taking over, and without this the bar's own
+    /// automatic coordinator would drive it too — two sources fighting over
+    /// the same progress value. Set `minimizesOnScroll` back to `true`
+    /// afterwards if you genuinely want both.
+    public var bar: (any ShrinkableBar)? {
+        get { storedBar }
+        set {
+            storedBar = newValue
+            newValue?.minimizesOnScroll = false
+        }
+    }
+
+    /// The automatic path's way in: same assignment, minus the hand-off
+    /// above, because this coordinator IS the bar's automatic one.
+    func drive(_ bar: any ShrinkableBar) {
+        storedBar = bar
+    }
 
     private var isDragging = false
     private var lastSample: (offset: CGFloat, time: TimeInterval)?

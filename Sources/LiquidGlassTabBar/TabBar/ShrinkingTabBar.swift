@@ -38,6 +38,31 @@ public final class ShrinkingTabBar: UIView, ShrinkableBar {
     }
 
     public var onSelect: ((Int) -> Void)?
+
+    /// Shrink in response to ANY scroll view the user drags, discovered
+    /// automatically — no coordinator to build and no per-scroll-view
+    /// wiring, in UIKit or SwiftUI alike. This is the whole setup:
+    ///
+    ///     bar.minimizesOnScroll = true
+    ///
+    /// Assigning this bar to a `ShrinkCoordinator` turns it off, since that
+    /// means you are driving the shrink yourself.
+    public var minimizesOnScroll: Bool = true {
+        didSet { refreshAutomaticShrink() }
+    }
+
+    private let automaticShrink = AutomaticShrink()
+
+    public override func didMoveToWindow() {
+        super.didMoveToWindow()
+        // The probe rides the window, so it can only be installed once
+        // there is one — and must follow the bar if it changes windows.
+        refreshAutomaticShrink()
+    }
+
+    private func refreshAutomaticShrink() {
+        automaticShrink.refresh(isEnabled: minimizesOnScroll, bar: self, window: window)
+    }
     public var selectedIndex: Int = 0 {
         didSet {
             guard oldValue != selectedIndex else { return }
