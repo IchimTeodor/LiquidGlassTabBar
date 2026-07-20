@@ -8,6 +8,9 @@ public struct ShrinkingTabBarView: UIViewRepresentable {
     @Binding var selectedIndex: Int
     let coordinator: ShrinkCoordinator?
     var variant: BarVariant = .metal
+    private var selectedTintColor: UIColor = .systemBlue
+    private var unselectedTintColor: UIColor = .secondaryLabel
+    private var onShrinkProgress: ((CGFloat) -> Void)?
 
     /// The memberwise initializer is internal, so package consumers get an
     /// explicit one.
@@ -42,6 +45,35 @@ public struct ShrinkingTabBarView: UIViewRepresentable {
             rebuildBar(in: container)
         }
         container.bar?.selectedIndex = selectedIndex
+        apply(to: container.bar)
+    }
+
+    /// Pushes the SwiftUI-owned values into the bar on every update. Badges
+    /// come from `items`, so changing an item's badge in SwiftUI state is
+    /// what updates it — no imperative call needed.
+    private func apply(to bar: (UIView & ShrinkableBar)?) {
+        guard let bar = bar as? ShrinkingTabBar else { return }
+        bar.selectedTintColor = selectedTintColor
+        bar.unselectedTintColor = unselectedTintColor
+        bar.onShrinkProgress = onShrinkProgress
+        for (index, item) in items.enumerated() where bar.badge(at: index) != item.badge {
+            bar.setBadge(item.badge, at: index)
+        }
+    }
+
+    /// Colors for the selected and unselected items.
+    public func tabBarTints(selected: UIColor, unselected: UIColor) -> Self {
+        var copy = self
+        copy.selectedTintColor = selected
+        copy.unselectedTintColor = unselected
+        return copy
+    }
+
+    /// Reports the shrink as it changes: 0 is full size, 1 fully shrunk.
+    public func onTabBarShrink(_ handler: @escaping (CGFloat) -> Void) -> Self {
+        var copy = self
+        copy.onShrinkProgress = handler
+        return copy
     }
 
     private func rebuildBar(in container: Container) {
@@ -56,6 +88,7 @@ public struct ShrinkingTabBarView: UIViewRepresentable {
         container.addSubview(bar)
         container.bar = bar
         container.variant = variant
+        apply(to: bar)
         // Assigning the bar switches its automatic mode off, so this must
         // happen only when a coordinator was actually supplied.
         coordinator?.bar = bar

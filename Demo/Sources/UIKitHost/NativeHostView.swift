@@ -21,7 +21,7 @@ struct NativeHostView: UIViewControllerRepresentable {
             let content = MockListViewController(rows: MockData.rows(for: index),
                                                  bottomInset: 0)
             content.tabBarItem = UITabBarItem(title: item.title,
-                                              image: UIImage(systemName: item.systemImage),
+                                              image: item.image(selected: false),
                                               tag: index)
             return content
         }

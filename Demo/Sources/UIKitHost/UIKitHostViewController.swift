@@ -15,6 +15,16 @@ final class UIKitHostViewController: UITabBarController {
         }
     }
     private var shrinkBar: (UIView & ShrinkableBar)?
+    /// Driven by the bar's shrink callback, to show it reporting.
+    private let shrinkLabel: UILabel = {
+        let label = UILabel()
+        label.font = .monospacedDigitSystemFont(ofSize: 11, weight: .regular)
+        label.textColor = .secondaryLabel
+        label.textAlignment = .center
+        label.text = "shrink 0.00"
+        label.translatesAutoresizingMaskIntoConstraints = false
+        return label
+    }()
 
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -25,6 +35,12 @@ final class UIKitHostViewController: UITabBarController {
         }
 
         tabBar.isHidden = true
+        view.addSubview(shrinkLabel)
+        NSLayoutConstraint.activate([
+            shrinkLabel.centerXAnchor.constraint(equalTo: view.centerXAnchor),
+            shrinkLabel.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor,
+                                                constant: -74),
+        ])
         installBar()
     }
 
@@ -42,6 +58,18 @@ final class UIKitHostViewController: UITabBarController {
         bar.onSelect = { [weak self] index in
             guard let self, self.selectedIndex != index else { return }
             self.selectedIndex = index
+        }
+        if let metalBar = bar as? ShrinkingTabBar {
+            // Public tint config, shown with non-default colors so a
+            // regression here is visible rather than silently matching.
+            metalBar.selectedTintColor = .systemIndigo
+            metalBar.unselectedTintColor = .secondaryLabel
+            // Badges are state: clearing Favorites on selection is the
+            // ordinary "user has seen it" case.
+            metalBar.onShrinkProgress = { [weak self] progress in
+                self?.shrinkLabel.text = String(format: "shrink %.2f", progress)
+                self?.shrinkLabel.alpha = 1 - progress
+            }
         }
         bar.translatesAutoresizingMaskIntoConstraints = false
         view.addSubview(bar)
