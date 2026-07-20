@@ -11,6 +11,7 @@ import LiquidGlassTabBar
 struct SwiftUIHostView: View {
     var variant: BarVariant = .metal
     @State private var selectedIndex = 0
+    @State private var shrinkProgress: CGFloat = 0
 
     var body: some View {
         ZStack(alignment: .bottom) {
@@ -24,9 +25,20 @@ struct SwiftUIHostView: View {
             ShrinkingTabBarView(items: MockData.tabs,
                                 selectedIndex: $selectedIndex,
                                 variant: variant)
+                .onTabBarShrink { shrinkProgress = $0 }
                 .frame(height: 64)
                 .padding(.horizontal, 16)
                 .padding(.bottom, 4)
+        }
+        // What the shrink callback is for: driving something else off the
+        // same gesture. The label fades out as the bar minimizes.
+        .overlay(alignment: .bottom) {
+            Text("shrink \(shrinkProgress, format: .number.precision(.fractionLength(2)))")
+                .font(.caption2.monospacedDigit())
+                .foregroundStyle(.secondary)
+                .padding(.bottom, 74)
+                .opacity(1 - shrinkProgress)
+                .animation(.easeOut(duration: 0.25), value: shrinkProgress)
         }
     }
 

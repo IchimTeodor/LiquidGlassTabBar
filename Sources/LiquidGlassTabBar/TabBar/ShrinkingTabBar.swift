@@ -39,6 +39,31 @@ public final class ShrinkingTabBar: UIView, ShrinkableBar {
 
     public var onSelect: ((Int) -> Void)?
 
+    /// Reports the shrink as it changes: 0 is full size, 1 fully shrunk.
+    ///
+    /// Fires only when the value actually changes, and fires with the TARGET
+    /// of an animated shrink rather than once per frame — so it is a signal
+    /// about intent (use it to fade a header, say), not an animation clock.
+    public var onShrinkProgress: ((CGFloat) -> Void)?
+
+    /// Color of the unselected items. Applying it re-tints in place rather
+    /// than rebuilding the rows, so it is safe to set at any time.
+    public var unselectedTintColor: UIColor = .secondaryLabel {
+        didSet {
+            guard oldValue != unselectedTintColor else { return }
+            for button in itemButtons { TabItemViews.updateTint(button, to: unselectedTintColor) }
+        }
+    }
+
+    /// Color of the selected item — the color the lens paints as it passes
+    /// over an item, and the one the selected item keeps at rest.
+    public var selectedTintColor: UIColor = .systemBlue {
+        didSet {
+            guard oldValue != selectedTintColor else { return }
+            for button in tintedButtons { TabItemViews.updateTint(button, to: selectedTintColor) }
+        }
+    }
+
     /// Shrink in response to ANY scroll view the user drags, discovered
     /// automatically — no coordinator to build and no per-scroll-view
     /// wiring, in UIKit or SwiftUI alike. This is the whole setup:
@@ -70,6 +95,28 @@ public final class ShrinkingTabBar: UIView, ShrinkableBar {
         }
     }
 
+    /// Sets the badge on the item at `index`, replacing whatever it had.
+    ///
+    /// Badges are state rather than configuration, so they change here and
+    /// not by rebuilding the items. Out-of-range indices are ignored, since
+    /// badge updates usually arrive from asynchronous work (an unread count
+    /// landing after a reconfiguration) and crashing on a stale index would
+    /// be a poor trade.
+    public func setBadge(_ badge: TabBadge, at index: Int) {
+        guard badgeViews.indices.contains(index) else { return }
+        // Both rows carry the badge so it looks identical whether or not the
+        // lens happens to be over the item.
+        badgeStates[index] = badge
+        badgeViews[index].apply(badge)
+        tintedBadgeViews[index].apply(badge)
+    }
+
+    /// The badge currently on the item at `index`.
+    public func badge(at index: Int) -> TabBadge {
+        guard badgeStates.indices.contains(index) else { return .none }
+        return badgeStates[index]
+    }
+
     /// Test hook: the glass capsule's current frame within the bar.
     var glassFrameForTesting: CGRect { effectView.frame }
     /// Test hook: the selection lens's untransformed size (transform-immune:
@@ -81,6 +128,20 @@ public final class ShrinkingTabBar: UIView, ShrinkableBar {
     var tintMaskFrameForTesting: CGRect { tintMask.frame }
     /// Test hook: the item buttons' title labels (empty before first layout).
     var itemTitleLabelsForTesting: [UILabel] { itemButtons.compactMap(\.titleLabel) }
+    /// Test hook: the images each row resolved, unselected row then selected.
+    var itemImagesForTesting: (unselected: [UIImage?], selected: [UIImage?]) {
+        (itemButtons.map { $0.configuration?.image },
+         tintedButtons.map { $0.configuration?.image })
+    }
+    /// Test hook: the foreground color each row is tinted with.
+    var itemTintsForTesting: (unselected: [UIColor?], selected: [UIColor?]) {
+        (itemButtons.map { $0.configuration?.baseForegroundColor },
+         tintedButtons.map { $0.configuration?.baseForegroundColor })
+    }
+    /// Test hook: per item, whether the badge is showing in each row.
+    var badgeVisibilityForTesting: (base: [Bool], tinted: [Bool]) {
+        (badgeViews.map { !$0.isHidden }, tintedBadgeViews.map { !$0.isHidden })
+    }
 
     /// Holds every piece of bar content EXCEPT the lens (glass capsule, item
     /// rows) and fills the bar exactly, so it shares the bar's coordinate
@@ -94,6 +155,11 @@ public final class ShrinkingTabBar: UIView, ShrinkableBar {
     private let tintMask = UIView()
     private var itemButtons: [UIButton] = []
     private var tintedButtons: [UIButton] = []
+    private var badgeViews: [BadgeView] = []
+    private var tintedBadgeViews: [BadgeView] = []
+    /// Mirrors what the badge views are showing, so `badge(at:)` can answer
+    /// without interrogating view state.
+    private var badgeStates: [TabBadge] = []
     private var progress: CGFloat = 0
     private var glassWidth: NSLayoutConstraint!
     private var glassHeight: NSLayoutConstraint!
@@ -131,20 +197,26 @@ public final class ShrinkingTabBar: UIView, ShrinkableBar {
         tintedStack.translatesAutoresizingMaskIntoConstraints = false
         tintedStack.isUserInteractionEnabled = false
 
+        badgeStates = items.map(\.badge)
         for (index, item) in items.enumerated() {
-            // Base row: permanently gray; the blue "selection" look comes
-            // from the masked tinted replica painted on top.
-            let button = Self.makeButton(for: item, tint: .secondaryLabel, interactive: true)
-            button.addAction(UIAction { [weak self] _ in
+            // Base row: the unselected look. The "selected" look comes from
+            // the masked replica painted on top, which carries the selected
+            // artwork and tint.
+            let base = TabItemViews.makeButton(for: item, selected: false,
+                                               tint: unselectedTintColor, interactive: true)
+            base.button.addAction(UIAction { [weak self] _ in
                 self?.selectedIndex = index
                 self?.onSelect?(index)
             }, for: .touchUpInside)
-            itemButtons.append(button)
-            stack.addArrangedSubview(button)
+            itemButtons.append(base.button)
+            badgeViews.append(base.badge)
+            stack.addArrangedSubview(base.button)
 
-            let tinted = Self.makeButton(for: item, tint: .systemBlue, interactive: false)
-            tintedButtons.append(tinted)
-            tintedStack.addArrangedSubview(tinted)
+            let tinted = TabItemViews.makeButton(for: item, selected: true,
+                                                 tint: selectedTintColor, interactive: false)
+            tintedButtons.append(tinted.button)
+            tintedBadgeViews.append(tinted.badge)
+            tintedStack.addArrangedSubview(tinted.button)
         }
 
         // Direct bar subview, ABOVE contentContainer — a lens must never be
@@ -213,36 +285,6 @@ public final class ShrinkingTabBar: UIView, ShrinkableBar {
         NSLayoutConstraint.activate(constraints)
     }
 
-    private static func makeButton(for item: TabItem, tint: UIColor, interactive: Bool) -> UIButton {
-        var config = UIButton.Configuration.plain()
-        config.image = UIImage(systemName: item.systemImage)
-        config.title = item.title
-        config.imagePlacement = .top
-        config.imagePadding = 2
-        config.baseForegroundColor = tint
-        // Reclaim the plain() configuration's default 16pt side insets: they
-        // eat 32pt of a slot that is only ~68pt wide at full shrink, which
-        // left "Favorites" 36pt for a 48pt word and hyphen-wrapped it onto
-        // two lines. The shrink narrows slots via REAL layout while the 0.8
-        // content scale is a transform applied afterwards, so the title must
-        // fit the shrunk slot at FULL font size — the squeeze is entirely in
-        // the insets. Titles are centered and far narrower than a bare slot,
-        // so neighbours still don't touch. Vertical insets are untouched
-        // (they set the button's height).
-        config.contentInsets.leading = 0
-        config.contentInsets.trailing = 0
-        config.preferredSymbolConfigurationForImage =
-            UIImage.SymbolConfiguration(pointSize: 17, weight: .medium)
-        config.titleTextAttributesTransformer =
-            UIConfigurationTextAttributesTransformer { attributes in
-                var updated = attributes
-                updated.font = UIFont.preferredFont(forTextStyle: .caption2)
-                return updated
-            }
-        let button = UIButton(configuration: config)
-        button.isUserInteractionEnabled = interactive
-        return button
-    }
 
     public required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
 
@@ -252,7 +294,13 @@ public final class ShrinkingTabBar: UIView, ShrinkableBar {
     }
 
     public func setProgress(_ newProgress: CGFloat, animated: Bool) {
-        progress = min(max(newProgress, 0), 1)
+        let clamped = min(max(newProgress, 0), 1)
+        let changed = clamped != progress
+        progress = clamped
+        // After the model update so a callback that reads the bar sees the
+        // new state, and gated on a real change so the scroll stream doesn't
+        // republish the same value on every sample.
+        if changed { onShrinkProgress?(clamped) }
         if animated {
             UIView.animate(withDuration: 0.35, delay: 0,
                            usingSpringWithDamping: 0.8, initialSpringVelocity: 0,

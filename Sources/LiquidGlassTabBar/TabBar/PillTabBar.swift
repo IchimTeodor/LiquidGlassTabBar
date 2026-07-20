@@ -112,26 +112,20 @@ public final class PillTabBar: UIView, ShrinkableBar {
         stack.translatesAutoresizingMaskIntoConstraints = false
 
         for (index, item) in items.enumerated() {
-            var config = UIButton.Configuration.plain()
-            config.image = UIImage(systemName: item.systemImage)
-            config.title = item.title
-            config.imagePlacement = .top
-            config.imagePadding = 2
-            config.preferredSymbolConfigurationForImage =
-                UIImage.SymbolConfiguration(pointSize: 17, weight: .medium)
-            config.titleTextAttributesTransformer =
-                UIConfigurationTextAttributesTransformer { attributes in
-                    var updated = attributes
-                    updated.font = UIFont.preferredFont(forTextStyle: .caption2)
-                    return updated
-                }
-            let button = UIButton(configuration: config)
-            button.addAction(UIAction { [weak self] _ in
+            // Shares the item factory with the metal bar so icons, badges,
+            // and the title metrics stay identical between variants — the
+            // point of keeping v1 around is comparing the INDICATOR, so
+            // everything else should match. `.tintColor` preserves v1's
+            // look, which never set a foreground color and so inherited the
+            // button's tint for every item, selected or not.
+            let item = TabItemViews.makeButton(for: item, selected: false,
+                                               tint: .tintColor, interactive: true)
+            item.button.addAction(UIAction { [weak self] _ in
                 self?.selectedIndex = index
                 self?.onSelect?(index)
             }, for: .touchUpInside)
-            itemButtons.append(button)
-            stack.addArrangedSubview(button)
+            itemButtons.append(item.button)
+            stack.addArrangedSubview(item.button)
         }
 
         // Sibling above the glass capsule but below the item buttons, so the

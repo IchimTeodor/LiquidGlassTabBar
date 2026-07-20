@@ -70,6 +70,53 @@ view.addSubview(bar)
 // bar.minimizesOnScroll is already true; nothing else to wire.
 ```
 
+### Icons
+
+Items take either an SF Symbol or your own artwork, with a separate image for the selected state:
+
+```swift
+TabItem(title: "Home", systemImage: "house.fill")
+
+TabItem(title: "Profile",
+        image: UIImage(named: "profile")!,
+        selectedImage: UIImage(named: "profile.fill")!)
+```
+
+Supplied artwork is template-rendered by default, so it picks up the bar's tints like a symbol does. Pass `renderingMode: .original` for multicolor artwork that tinting would flatten to a single color. SF Symbols are always template — tinting them per state is how they show selection.
+
+### Badges
+
+```swift
+TabItem(title: "Search", systemImage: "magnifyingglass", badge: .dot)
+TabItem(title: "Inbox", systemImage: "tray", badge: .count(3))
+```
+
+`TabBadge` is `.none`, `.dot`, or `.text(String)`. `count(_:maximum:)` is a factory over those: it clamps to `"99+"` by default and returns `.none` for zero, so an unread count can be bound straight through without special-casing empty.
+
+Badges are state, so they change without rebuilding items:
+
+```swift
+bar.setBadge(.count(unreadCount), at: 1)   // UIKit
+```
+
+In SwiftUI they come from the items array — change an item's badge in your state and the bar follows.
+
+### Tints and shrink progress
+
+```swift
+bar.selectedTintColor = .systemIndigo
+bar.unselectedTintColor = .secondaryLabel
+bar.onShrinkProgress = { progress in /* 0 = full size, 1 = fully shrunk */ }
+```
+
+```swift
+ShrinkingTabBarView(items: items, selectedIndex: $selectedIndex)
+    .tabBarTints(selected: .systemIndigo, unselected: .secondaryLabel)
+    .onTabBarShrink { progress in shrinkProgress = progress }
+```
+
+`onShrinkProgress` fires only when the value actually changes, and reports the target of an animated shrink rather than once per frame — it's a signal about intent (fade a header, say), not an animation clock.
+
 ### How it finds your scroll views
 
 The bar puts an inert probe gesture recognizer on its window. Recognizers on an ancestor are offered every touch that lands in a descendant, so the probe is asked about each touch-down anywhere in the app; walking up from the touched view finds the scroll view containing it, which is observed from then on. The probe always declines the touch, so it never begins, and cannot delay, cancel, or compete with anything.
