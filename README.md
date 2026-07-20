@@ -2,7 +2,7 @@
 
 A study in rebuilding the iOS 26 **Liquid Glass** tab bar from scratch — including the refractive "bubble" that follows your finger, rendered by a real Metal fragment shader rather than stacked Core Animation layers.
 
-The app runs the custom bar side by side with the genuine system tab bar, so the reproduction can be compared against ground truth on the same screen, at the same moment, with the same content underneath.
+It ships as a Swift package you can drop into an app, plus a demo that runs the custom bar side by side with the genuine system tab bar — so the reproduction can be compared against ground truth on the same screen, at the same moment, with the same content underneath.
 
 ## What's in here
 
@@ -19,21 +19,78 @@ The app runs the custom bar side by side with the genuine system tab bar, so the
 - iOS 26+ for the real `UIGlassEffect` and shrink-on-scroll; on iOS 18–25 the bar falls back to a `systemUltraThinMaterial` blur and stays at full size
 - A device or simulator with Metal (the lens degrades to rendering nothing if Metal is unavailable — the rest of the bar is entirely independent of it)
 
-## Getting started
+## Installation
+
+Add the package in Xcode via **File → Add Package Dependencies**, or declare it directly:
+
+```swift
+dependencies: [
+    .package(url: "https://github.com/IchimTeodor/LiquidGlassTabBar.git", from: "1.0.0")
+]
+```
+
+Then `import LiquidGlassTabBar`.
+
+## Usage
+
+In SwiftUI, hand the bar your items and a selection binding, and attach `.shrinksTabBar()` to the scroll view that should drive the shrink:
+
+```swift
+import SwiftUI
+import LiquidGlassTabBar
+
+struct ContentView: View {
+    private let items = [
+        TabItem(title: "Home", systemImage: "house.fill"),
+        TabItem(title: "Search", systemImage: "magnifyingglass"),
+    ]
+    @State private var selectedIndex = 0
+    @State private var coordinator = ShrinkCoordinator()
+
+    var body: some View {
+        ZStack(alignment: .bottom) {
+            ScrollView {
+                // your content
+            }
+            .shrinksTabBar()
+            .environment(\.shrinkCoordinator, coordinator)
+
+            ShrinkingTabBarView(items: items,
+                                selectedIndex: $selectedIndex,
+                                coordinator: coordinator)
+                .frame(height: 64)
+                .padding(.horizontal, 16)
+        }
+    }
+}
+```
+
+In UIKit, add `ShrinkingTabBar` as a subview and point a `ScrollShrinkObserver` at each scroll view:
+
+```swift
+let bar = ShrinkingTabBar(items: items)
+bar.onSelect = { index in /* switch tabs */ }
+
+let coordinator = ShrinkCoordinator()
+coordinator.bar = bar
+let observer = ScrollShrinkObserver(coordinator: coordinator)
+observer.attach(to: tableView)
+```
+
+The scroll views never need to know about the bar — the observer watches `contentOffset` via KVO and drives the shared coordinator.
+
+## Running the demo
 
 ```sh
 git clone https://github.com/IchimTeodor/LiquidGlassTabBar.git
-cd LiquidGlassTabBar
-open LiquidGlassTabBar.xcodeproj
+open LiquidGlassTabBar/Demo/LiquidGlassTabBarDemo.xcodeproj
 ```
 
-Then build and run the `LiquidGlassTabBar` scheme.
-
-The project file is committed so the repo opens directly, but it's generated from `project.yml` by [XcodeGen](https://github.com/yonaskolb/XcodeGen). If you add or remove source files, regenerate it rather than editing the project by hand:
+Build and run the `LiquidGlassTabBarDemo` scheme. The demo project is committed so it opens directly, but it's generated from `Demo/project.yml` by [XcodeGen](https://github.com/yonaskolb/XcodeGen). If you add or remove demo files, regenerate rather than editing the project by hand:
 
 ```sh
 brew install xcodegen   # once
-xcodegen generate
+cd Demo && xcodegen generate
 ```
 
 ## Running the tests
@@ -42,7 +99,7 @@ xcodegen generate
 xcodebuild -scheme LiquidGlassTabBar -destination 'platform=iOS Simulator,name=iPhone 17 Pro' test
 ```
 
-The suite covers the pure shrink model, the scroll plumbing, and the bar's layout and drag behavior — slot geometry, tint-mask tracking, lens sizing, and title layout under shrink.
+The suite covers the pure shrink model, the scroll plumbing, and the bar's layout and drag behavior — slot geometry, tint-mask tracking, lens sizing, and title layout under shrink. A simulator destination is required: the package is iOS-only, so `swift test` on macOS won't build it.
 
 ## How the lens works
 
@@ -62,14 +119,16 @@ Both files carry extensive comments recording what was tried and rejected, which
 
 | Path | Contents |
 | --- | --- |
-| `LiquidGlassTabBar/Core/` | Pure, UI-free shrink logic: the shrink model, the scroll-to-model bridge, KVO scroll observation |
-| `LiquidGlassTabBar/TabBar/` | Both bar implementations, the Metal lens view, and the shader |
-| `LiquidGlassTabBar/SwiftUIHost/` | SwiftUI host and the `.shrinksTabBar()` modifier |
-| `LiquidGlassTabBar/UIKitHost/` | UIKit host and the native reference host |
-| `Tests/` | Swift Testing suites |
+| `Sources/LiquidGlassTabBar/Core/` | Pure, UI-free shrink logic: the shrink model, the scroll-to-model bridge, KVO scroll observation |
+| `Sources/LiquidGlassTabBar/TabBar/` | Both bar implementations, the Metal lens view, and the shader |
+| `Sources/LiquidGlassTabBar/SwiftUI/` | `ShrinkingTabBarView` and the `.shrinksTabBar()` modifier |
+| `Tests/LiquidGlassTabBarTests/` | Swift Testing suites |
+| `Demo/` | The demo app: SwiftUI host, UIKit host, and the native reference host |
 | `docs/` | Design spec and implementation plan |
 
 `TabBarShrinkModel` is deliberately free of UIKit: it takes scroll samples and produces a progress value, so the scroll behavior is testable without a view hierarchy.
+
+`Shaders.metal` lives alongside the Swift sources, so SwiftPM compiles it into a `default.metallib` inside the target's resource bundle. That's why the lens loads its library from `Bundle.module` — the no-argument `makeDefaultLibrary()` reads the *main* bundle, which in a package consumer holds the app's shaders, not the package's.
 
 ## Contributing
 
