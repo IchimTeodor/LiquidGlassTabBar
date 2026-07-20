@@ -14,11 +14,11 @@ public enum BarVariant {
 }
 
 /// The common surface both bar variants expose to the hosts and the shrink
-/// coordinator (tab wiring plus scroll-driven shrink progress). Deliberately
-/// not @MainActor-annotated: the conformers are UIView subclasses (already
-/// main-actor in practice) and the pre-variant code called the concrete
-/// class from the nonisolated ShrinkCoordinator under the project's Swift 5
-/// concurrency mode — an isolated protocol would tighten that retroactively.
+/// coordinator (tab wiring plus scroll-driven shrink progress). Main-actor
+/// isolated, matching the UIView conformers it is constrained to: the
+/// coordinator that drives it is main-actor too, so the isolation is stated
+/// rather than assumed (this is what the package's Swift 6 mode requires,
+/// and it was already true in practice).
 public protocol ShrinkableBar: UIView {
     var onSelect: ((Int) -> Void)? { get set }
     var selectedIndex: Int { get set }

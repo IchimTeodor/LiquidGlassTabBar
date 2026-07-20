@@ -4,6 +4,7 @@ import UIKit
 /// scroll view's owner knowing about the tab bar: contentOffset is observed
 /// via KVO, drag begin/end via the scroll view's own pan gesture recognizer.
 /// One instance per host; attach each tab's scroll view once.
+@MainActor
 public final class ScrollShrinkObserver: NSObject {
     private let coordinator: ShrinkCoordinator
     private var observations: [NSKeyValueObservation] = []

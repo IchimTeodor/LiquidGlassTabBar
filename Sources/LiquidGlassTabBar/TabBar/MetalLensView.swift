@@ -228,13 +228,18 @@ final class MetalLensView: UIView {
 
     required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
 
-    deinit {
-        displayLink?.invalidate()
-    }
+    // Deliberately NO deinit invalidating the display link: a SCHEDULED
+    // CADisplayLink retains its target, so while a link is live this view
+    // cannot deallocate and deinit cannot run — the cleanup there was
+    // unreachable by construction. (Swift 6 also rejects touching
+    // main-actor state from a nonisolated deinit, which is what surfaced
+    // it.) Teardown runs through the two paths that actually fire while
+    // the view is alive: the explicit setLive(false) calls, and the
+    // window-detach backstop below.
 
     /// A running CADisplayLink retains its target, so a live link left
     /// running on a detached lens would leak the view and keep rendering
-    /// forever; stopping on window detach is a defensive backstop alongside
+    /// forever; stopping on window detach is the backstop alongside
     /// the explicit setLive(false) calls.
     override func didMoveToWindow() {
         super.didMoveToWindow()

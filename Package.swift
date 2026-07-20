@@ -17,10 +17,5 @@ let package = Package(
         // the main bundle.
         .target(name: "LiquidGlassTabBar"),
         .testTarget(name: "LiquidGlassTabBarTests", dependencies: ["LiquidGlassTabBar"]),
-    ],
-    // Swift 5 language mode, matching what this code was written against: the
-    // bar's UIView conformers are main-actor in practice but are driven from
-    // the deliberately nonisolated ShrinkCoordinator, which Swift 6's strict
-    // checking would reject (see the note on ShrinkableBar).
-    swiftLanguageModes: [.v5]
+    ]
 )

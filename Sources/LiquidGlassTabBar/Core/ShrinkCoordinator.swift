@@ -4,6 +4,7 @@ import UIKit
 /// `TabBarShrinkModel` and drives a `ShrinkingTabBar`. One instance per host.
 /// Velocity is computed here from consecutive samples so both frameworks get
 /// identical fling semantics.
+@MainActor
 public final class ShrinkCoordinator {
     /// Shrink-on-scroll accompanies the Liquid Glass appearance, which is
     /// iOS 26+. On iOS 18–25 the bar keeps its material background and
